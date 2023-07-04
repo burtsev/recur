@@ -95,9 +95,9 @@ def get_parser():
                         help="Optimizer (SGD / RMSprop / Adam, etc.)")
     parser.add_argument("--clip_grad_norm", type=float, default=1,
                         help="Clip gradients norm (0 to disable)")
-    parser.add_argument("--epoch_size", type=int, default=10000,
+    parser.add_argument("--epoch_size", type=int, default=10,
                         help="Epoch size / evaluation frequency")
-    parser.add_argument("--max_epoch", type=int, default=100000,
+    parser.add_argument("--max_epoch", type=int, default=100,
                         help="Number of epochs")
     parser.add_argument("--stopping_criterion", type=str, default="",
                         help="Stopping criterion, and number of non-increase before stopping the experiment")
