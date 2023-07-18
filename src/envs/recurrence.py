@@ -138,10 +138,12 @@ class RecurrenceEnvironment(object):
 
     @timeout(3)
     def gen_expr(self, train, input_length_modulo=-1, nb_ops=None):
-        
+
+              
         length=self.params.max_len if input_length_modulo!=-1 and not train else None
         if train: length = self.curr_length
         tree, series, predictions, n_input_points = self.generator.generate(rng=self.rng, nb_ops=nb_ops, prediction_points=True, length=length)
+        #print('tree in recur = ', tree)
         if tree is None:
             return None, None, None, None
         n_ops = tree.get_n_ops()
@@ -182,6 +184,7 @@ class RecurrenceEnvironment(object):
             indexes_to_remove = [0]
 
         x, y = [], []
+        #print('got in gen_expr() - x, y ',x, y )  
         info = {"n_input_points":[], "n_ops": [], "n_recurrence_degree": []}
         for idx in indexes_to_remove:
             #if self.params.output_numeric:
@@ -213,6 +216,8 @@ class RecurrenceEnvironment(object):
             info["n_ops"].append(n_ops)
             info["n_recurrence_degree"].append(n_recurrence_degree)
             
+        #print(tree)
+        
         return x, y, tree, info
 
     def code_class(self, tree):
@@ -524,7 +529,8 @@ class EnvDataset(Dataset):
             logger.info(
                 "Initialized {} generator, with seed {} (random state: {})".format(self.type, seed, self.env.rng)    
             )
-            #print(self.generate_sample())
+        print('<--->')
+        print(self.generate_sample())
 
     def get_worker_id(self):
         """
@@ -543,7 +549,7 @@ class EnvDataset(Dataset):
         return self.size
 
     def __getitem__(self, index):
-        """s
+        """
         Return a training sample.
         Either generate it, or read it from file.
         """
@@ -587,7 +593,7 @@ class EnvDataset(Dataset):
         """
         Generate a sample.
         """
-
+        #print('got in generate_sample()')
         def select_index(dico, idx):
             new_dico={}
             for k in dico.keys():
@@ -620,4 +626,5 @@ class EnvDataset(Dataset):
         x,y,tree,info=self._x[-self.remaining_data], self._y[-self.remaining_data], self.tree, select_index(self.infos,-self.remaining_data)
         self.remaining_data-=1
         self.count += 1
+        #print(tree)
         return x, y, tree, info
