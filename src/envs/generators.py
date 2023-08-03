@@ -703,18 +703,20 @@ class RandomGeneratingFunction(Generator):
         return e, arity
 
     def generate_tree(self, rng, nb_ops, degree):
-        tree = Node(0, self.params)
-        empty_nodes = [tree]
+        tree = Node(0, self.params) # creates a new node with an initial value of 0
+        empty_nodes = [tree] # any modification to the nodes in empty_nodes is reflected in tree
         next_en = 0
         nb_empty = 1
         while nb_ops > 0:
-            next_pos, arity = self.sample_next_pos(rng, nb_empty, nb_ops)
+            # the position of the next operation in the tree, as well as the arity (the number of children nodes) for the operation
+            next_pos, arity = self.sample_next_pos(rng, nb_empty, nb_ops) 
             for n in empty_nodes[next_en:next_en + next_pos]:
                 n.value = self.generate_leaf(rng, degree)
             next_en += next_pos
             op = self.generate_ops(rng, arity)
             empty_nodes[next_en].value = op
             for _ in range(arity):
+                # adding a child node e to the node at the index next_en in the empty_nodes list
                 e = Node(0, self.params)
                 empty_nodes[next_en].push_child(e)
                 empty_nodes.append(e)
