@@ -46,6 +46,13 @@ operators_int = {
     # 'step': 1,
 }
 
+operators_int_gen = {
+    'add': 2,
+    'sub': 2,
+    'mul': 2,
+    'idiv':2,
+}
+
 operators_extra = {
     'pow': 2
 }
@@ -101,7 +108,11 @@ class Node():
         return self.infix()
     
     def val(self, series, deterministic=False):
+        """
+        Calculating values of expression
+        """
         curr_dim = len(series) %self.params.dimension
+        # If the current node has no children, it represents a value or a constant
         if len(self.children) == 0:
             if str(self.value).startswith('x_'):
                 _, dim, offset = self.value.split('_')
@@ -109,7 +120,7 @@ class Node():
                 dim_offset = dim-curr_dim
                 return series[-offset*self.params.dimension+dim_offset]
             elif str(self.value) == 'n':
-                return 1+int(len(series)/self.params.dimension)
+                return len(series)
             elif str(self.value) == 'rand':
                 if deterministic: return 0
                 if self.params.float_sequences:
@@ -120,8 +131,7 @@ class Node():
                 return getattr(np, str(self.value))
             else:
                 return eval(self.value)
-               
-    
+        # If the current node has children, it represents an operation.        
         if self.value == 'add':
             return self.children[0].val(series) + self.children[1].val(series)
         if self.value == 'sub':
@@ -164,7 +174,7 @@ class Node():
         if self.value.startswith('eval'):
             n = self.value[-1]
             return getattr(scipy.special, self.value[:-1])(n, self.children[0].val(series))[0]
-        else:
+        else: #If none of the above cases apply, the method tries to use NumPy's or SciPy's functions based on the node's value.
             try: return getattr(np,self.value)(self.children[0].val(series))
             except: return getattr(scipy.special,self.value)(self.children[0].val(series))
         
@@ -207,7 +217,7 @@ class NodeList():
     def get_n_ops(self):
         return sum([node.get_n_ops() for node in self.nodes])
 
-    def val(self, series, deterministic=False, dim_to_compute=None):
+    def val(self, series, deterministic=True, dim_to_compute=None):
         if dim_to_compute is None:
             dim_to_compute = [i for i in range(len(self.nodes))]
         return [self.nodes[i].val(series, deterministic=deterministic) if i in dim_to_compute else None for i in range(len(self.nodes))]
@@ -590,7 +600,7 @@ class RandomGeneratingFunction(Generator):
             self.operators = copy.deepcopy(operators_real)
         else:
             self.max_number = params.max_number
-            self.operators = copy.deepcopy(operators_int)
+            self.operators = copy.deepcopy(operators_int_gen)
             
         if params.operators_to_remove != "":
             for operator in self.params.operators_to_remove.split(","):
@@ -725,12 +735,50 @@ class RandomGeneratingFunction(Generator):
             next_en += 1
         for n in empty_nodes[next_en:]:
             n.value = self.generate_leaf(rng, degree)
-        
+        print('gen_tree:',tree)
         #tree = self.check_tree(tree, degree)
-
-        #print('New tree')
-        #print(tree)
         
+        return tree
+    
+    def generate_tree_poly(self, rng, nb_ops, degree):
+        tree = Node('mul', self.params) # creates a new node with an initial value of 0
+        #nodes = [tree] # any modification to the nodes in empty_nodes is reflected in tree
+        p_coeff = rng.choice(self.constants, size=nb_ops)
+        #print('coeff=',p_coeff)
+
+        for i in range(nb_ops):
+            sub_tree = Node('sub', self.params)
+            #nodes.append(sub_tree)
+
+            one_node = Node('1', self.params)
+            sub_tree.push_child(one_node)
+            #nodes.append(one_node)
+
+            mul_node = Node('mul', self.params)
+            sub_tree.push_child(mul_node)
+            #nodes.append(mul_node)
+
+            n_node = Node('n', self.params)
+            mul_node.push_child(n_node)
+            #nodes.append(n_node)
+
+            const_node = Node(p_coeff[i], self.params)
+            mul_node.push_child(const_node)
+            #nodes.append(const_node)
+            
+            if len(tree.children)==0:
+                tree.push_child(sub_tree)
+            else:
+                tree.push_child(sub_tree)
+                mul_node = Node('mul', self.params)
+                mul_node.push_child(tree)
+            #    nodes.append(mul_node)
+                tree = mul_node
+
+        one_node = Node('1',self.params)
+        tree.push_child(one_node)
+        #nodes.append(one_node)
+
         return tree
     
     #def check_tree(self, node, degree):
@@ -755,9 +803,10 @@ class RandomGeneratingFunction(Generator):
     def generate(self, rng, nb_ops=None, length=None, prediction_points=False,deg=None):
         #rng = rng
         #rng.seed() 
-        #print('-> generator.generate')
+        
         """prediction_points is a boolean which indicates whether we compute prediction points. By default we do not to save time. """
-        if deg is None:    deg    = rng.randint(1, self.max_degree + 1)
+        # if deg is None:    deg    = rng.randint(1, self.max_degree + 1)
+        deg = 0
         trees = []
         if nb_ops is None:
             nb_ops_probas=np.ones((self.dimension,self.max_ops))/self.max_ops
@@ -777,7 +826,7 @@ class RandomGeneratingFunction(Generator):
             nb_ops=_nb_ops
             
         for i in range(self.dimension):
-            trees.append(self.generate_tree(rng, nb_ops[i],deg))
+            trees.append(self.generate_tree_poly(rng, nb_ops[i],deg))
         tree = NodeList(trees)
         for op in self.required_operators:
             if op not in tree.infix():
@@ -818,7 +867,6 @@ class RandomGeneratingFunction(Generator):
                 return None, None, None
             series.extend(next_values)
 
-        #print('tree = ', tree)
         assert len(series)==max_recurrence_degree*self.dimension, "Problem with initial conditions"
         if length is None: 
             n_input_points = rng.randint(self.min_len, self.max_len+1)
@@ -829,14 +877,12 @@ class RandomGeneratingFunction(Generator):
             sum_length +=  self.params.n_predictions
 
         ##compute remaining points with given initial conditions
-        #print('tree = ', tree)
-        #print('series = ', series)
         for i in range(sum_length):
             try:
                 vals = tree.val(series)
             except:
                 print(series, tree.infix())
-                print("Bad tree vals. Tree: {}, Series: {}".format(tree, series))
+                print("Bad tree vals 2. Tree: {}, Series: {}".format(tree, series))
                 return None, None, None, None
             if any([abs(x)>self.max_number for x in vals]): 
                 return None, None, None, None
@@ -850,7 +896,9 @@ class RandomGeneratingFunction(Generator):
             if np.any(np.isnan(vals_array)): 
                 return None, None, None, None
             series.extend(vals)
-            
+
+        #print('remaining points:',series)
+
         if prediction_points:
             series_input = series[:-self.dimension*self.params.n_predictions]
             series_to_predict = series[-self.dimension*self.params.n_predictions:]

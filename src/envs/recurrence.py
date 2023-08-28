@@ -48,7 +48,8 @@ class RecurrenceEnvironment(object):
         self.additional_tolerance = [
             float(x) for x in params.more_tolerance.split(",") if len(x) > 0
         ]
-        self.generator = generators.RandomRecurrence(params)
+        # RandomRecurrence(params) RandomGeneratingFunction
+        self.generator = generators.RandomGeneratingFunction(params)
         
         if self.params.float_sequences:
             self.input_encoder = encoders.FloatSequences(params)
@@ -138,12 +139,10 @@ class RecurrenceEnvironment(object):
 
     @timeout(3)
     def gen_expr(self, train, input_length_modulo=-1, nb_ops=None):
-
               
         length=self.params.max_len if input_length_modulo!=-1 and not train else None
         if train: length = self.curr_length
         tree, series, predictions, n_input_points = self.generator.generate(rng=self.rng, nb_ops=nb_ops, prediction_points=True, length=length)
-        #print('tree in recur = ', tree)
         if tree is None:
             return None, None, None, None
         n_ops = tree.get_n_ops()
@@ -184,7 +183,7 @@ class RecurrenceEnvironment(object):
             indexes_to_remove = [0]
 
         x, y = [], []
-        #print('got in gen_expr() - x, y ',x, y )  
+        # print('got in gen_expr() - x, y ',x, y )  
         info = {"n_input_points":[], "n_ops": [], "n_recurrence_degree": []}
         for idx in indexes_to_remove:
             #if self.params.output_numeric:
@@ -215,8 +214,13 @@ class RecurrenceEnvironment(object):
             info["n_input_points"].append(n_input_points-idx)
             info["n_ops"].append(n_ops)
             info["n_recurrence_degree"].append(n_recurrence_degree)
-            
-        #print(tree)
+        """
+        print('x: ',x)
+        print('y: ',y)
+        print('series: ',series)   
+        print('tree: ',tree)
+        print('info: ',info)    
+        """
         
         return x, y, tree, info
 
@@ -349,9 +353,9 @@ class RecurrenceEnvironment(object):
         parser.add_argument("--max_token_len", type=int, default=0, help="max size of tokenized sentences, 0 is no filtering")
 
         #generator 
-        parser.add_argument("--max_int", type=int, default=10,
+        parser.add_argument("--max_int", type=int, default=1000,
                             help="Maximal integer in symbolic expressions")
-        parser.add_argument("--max_degree", type=int, default=6,
+        parser.add_argument("--max_degree", type=int, default=1, # was 6
                             help="Number of elements in the sequence the next term depends on")
         parser.add_argument("--max_ops", type=int, default=10,
                             help="Number of unary or binary operators")
